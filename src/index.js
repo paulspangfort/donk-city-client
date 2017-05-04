@@ -1,42 +1,94 @@
-import debounce from 'lodash.debounce';
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
-import SearchBar from './components/search_bar';
-import youtubeSearch from './youtube-api';
-import VideoList from './components/video_list';
-import VideoDetail from './components/video_detail';
+import Immutable from 'immutable';
+import * as firebasedb from './firebasedb';
+import Note from './components/Note';
+import NoteMaker from './components/note_button';
 import './style.scss';
 
+
 class App extends Component {
+
+
   constructor(props) {
     super(props);
 
-    this.search = debounce(this.search, 300);
-    this.search('pixar');
-
     this.state = {
-      videos: [],
-      selectedVideo: null,
+      notes: Immutable.Map(),
+      notesCounter: 0,
+      thing: 0,
     };
+
+    this.addNote = this.addNote.bind(this);
+    this.increment = this.increment.bind(this);
+    this.updateNotes = this.updateNotes.bind(this);
+    this.deleteNote = this.deleteNote.bind(this);
+    this.componentDidMount = this.componentDidMount.bind(this);
   }
 
-  search(text) {
-    youtubeSearch(text).then((videos) => {
-      this.setState({
-        videos,
-        selectedVideo: videos[0],
+  componentDidMount() {
+    firebasedb.fetchNotes((notes) => {
+      if (notes != null) {
+        this.setState({ notes: Immutable.Map(notes) });
+      }
+    });
+  }
+
+  deleteNote(id) { // eslint-disable-line class-methods-use-this
+    firebasedb.deleteNote(id).then(() => {
+      firebasedb.fetchNotes((notes) => {
+        console.log(notes);
+        this.setState({ notes: Immutable.Map(notes) });
       });
     });
   }
 
+  increment() {
+    this.setState({ notesCounter: this.state.notesCounter + 1 });
+  }
+
+
+  addNote(title, counter) {
+    console.log(title);
+    if (title !== '') {
+      const newNoteKey = firebasedb.getNewKey();
+
+      const note = {
+        text: '',
+        title,
+        id: newNoteKey,
+        x: counter * 25,
+        y: counter * 25,
+      };
+
+      firebasedb.addNewNote(note).then(() => {
+        firebasedb.fetchNotes((notes) => {
+          if (notes != null) {
+            this.setState({ notes: Immutable.Map(notes) });
+          }
+        });
+      });
+
+      this.increment();
+    } else {
+      console.log('enter a title ya dingus');
+    }
+  }
+
+  updateNotes(newNotes) {
+    this.setState({ notes: Immutable.Map(newNotes) });
+  }
+
+
   render() {
+    const finalNotes = this.state.notes.entrySeq().map(([id, notes]) => {
+      return <Note id={id} title={notes.title} text={notes.text} x={notes.x} y={notes.y} deleteNote={this.deleteNote} />;
+    });
+
     return (
       <div>
-        <SearchBar onSearchChange={text => this.search(text)} />
-        <div id="video-section">
-          <VideoDetail video={this.state.selectedVideo} />
-          <VideoList onVideoSelect={selectedVideo => this.setState({ selectedVideo })} videos={this.state.videos} />
-        </div>
+        {finalNotes}
+        <NoteMaker addNote={this.addNote} counter={this.state.notesCounter} />
       </div>
     );
   }
