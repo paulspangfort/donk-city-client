@@ -1,11 +1,13 @@
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
 import Immutable from 'immutable';
-import * as firebasedb from './firebasedb';
+import io from 'socket.io-client';
+// import * as firebasedb from './firebasedb';
 import Note from './components/Note';
 import NoteMaker from './components/note_button';
 import './style.scss';
 
+const socketserver = 'http://localhost:9090';
 
 class App extends Component {
 
@@ -19,6 +21,12 @@ class App extends Component {
       thing: 0,
     };
 
+    this.socket = io(socketserver);
+    this.socket.on('connect', () => { console.log('socket.io connected'); });
+    this.socket.on('disconnect', () => { console.log('socket.io disconnected'); });
+    this.socket.on('reconnect', () => { console.log('socket.io reconnected'); });
+    this.socket.on('error', (error) => { console.log(error); });
+
     this.addNote = this.addNote.bind(this);
     this.increment = this.increment.bind(this);
     this.updateNotes = this.updateNotes.bind(this);
@@ -27,7 +35,7 @@ class App extends Component {
   }
 
   componentDidMount() {
-    firebasedb.fetchNotes((notes) => {
+    this.socket.on('notes', (notes) => {
       if (notes != null) {
         this.setState({ notes: Immutable.Map(notes) });
       }
@@ -35,8 +43,8 @@ class App extends Component {
   }
 
   deleteNote(id) { // eslint-disable-line class-methods-use-this
-    firebasedb.deleteNote(id).then(() => {
-      firebasedb.fetchNotes((notes) => {
+    this.socket.emit('deleteNote', id).then(() => {
+      this.socket.on('notes', (notes) => {
         console.log(notes);
         this.setState({ notes: Immutable.Map(notes) });
       });
@@ -51,18 +59,15 @@ class App extends Component {
   addNote(title, counter) {
     console.log(title);
     if (title !== '') {
-      const newNoteKey = firebasedb.getNewKey();
-
       const note = {
         text: '',
         title,
-        id: newNoteKey,
         x: counter * 25,
         y: counter * 25,
       };
 
-      firebasedb.addNewNote(note).then(() => {
-        firebasedb.fetchNotes((notes) => {
+      this.socket.emit('createNote', note).then(() => {
+        this.socket.on('notes', (notes) => {
           if (notes != null) {
             this.setState({ notes: Immutable.Map(notes) });
           }
@@ -82,7 +87,9 @@ class App extends Component {
 
   render() {
     const finalNotes = this.state.notes.entrySeq().map(([id, notes]) => {
-      return <Note id={id} title={notes.title} text={notes.text} x={notes.x} y={notes.y} deleteNote={this.deleteNote} />;
+      return (<Note id={id} title={notes.title} text={notes.text}
+        x={notes.x} y={notes.y} deleteNote={this.deleteNote} updateNotes={this.updateNotes}
+      />);
     });
 
     return (
