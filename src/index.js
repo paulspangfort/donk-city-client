@@ -8,7 +8,8 @@ const socketserver = 'http://localhost:9090';
 
 function App() {
   const socket = io(socketserver);
-  socket.on('connect', () => { console.log('socket.io connected'); });
+  socket.on('connect', () => {});
+  socket.on('users', (value) => { console.log('value', value); });
   socket.on('disconnect', () => { console.log('socket.io disconnected'); });
   socket.on('reconnect', () => { console.log('socket.io reconnected'); });
   socket.on('error', (error) => { console.log(error); });
